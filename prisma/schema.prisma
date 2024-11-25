@@ -1,0 +1,223 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(auto()) @map("_id")
+  name           String?
+  email          String          @unique
+  emailVerified  DateTime?
+  image          String?
+  hashedPassword String?
+  role           Role            @default(USER)
+  gender         Gender?
+  kyc            UserKyc?        @relation(fields: [kycId], references: [id])
+  kycId          String?
+  ridesOffered   Ride[]          @relation("RidesOffered")
+  bookings       Booking[]       @relation("UserBookings")
+  payments       Payment[]       @relation("UserPayments")
+  supportTickets SupportTicket[] @relation("UserSupportTickets")
+  vehicles       Vehicle[]       @relation("UserVehicles")
+  chats          Chat[]          @relation("UserChats")
+  accounts       Account[]
+  sessions       Session[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model UserKyc {
+  id             String          @id @default(auto()) @map("_id")
+  user           User            @relation(fields: [userId], references: [id])
+  userId         String          @unique
+  documentType   KycDocumentType
+  documentNumber String
+  documentImage  String
+  address        String
+  isVerified     Boolean         @default(false)
+  submittedAt    DateTime        @default(now())
+  verifiedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Vehicle {
+  id                 String   @id @default(auto()) @map("_id")
+  owner             User     @relation("UserVehicles", fields: [ownerId], references: [id])
+  ownerId           String
+  make              String
+  model             String
+  year              Int
+  registrationNumber String
+  vehicleImage      String?
+  seatCount         Int
+  rides             Ride[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Ride {
+  id             String    @id @default(auto()) @map("_id")
+  driver         User      @relation("RidesOffered", fields: [driverId], references: [id])
+  driverId       String
+  vehicle        Vehicle   @relation(fields: [vehicleId], references: [id])
+  vehicleId      String
+  startLocation  String
+  endLocation    String
+  startTime      DateTime
+  endTime        DateTime
+  availableSeats Int
+  pricePerSeat   Float
+  status         RideStatus @default(SCHEDULED)
+  bookings       Booking[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Booking {
+  id          String        @id @default(auto()) @map("_id")
+  ride        Ride         @relation(fields: [rideId], references: [id])
+  rideId      String
+  passenger   User         @relation("UserBookings", fields: [passengerId], references: [id])
+  passengerId String
+  seatsBooked Int
+  totalPrice  Float
+  status      BookingStatus @default(PENDING)
+  payment     Payment?
+  chats       Chat[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Payment {
+  id                String        @id @default(auto()) @map("_id")
+  booking          Booking       @relation(fields: [bookingId], references: [id])
+  bookingId        String        @unique
+  user             User          @relation("UserPayments", fields: [userId], references: [id])
+  userId           String
+  amount           Float
+  currency         String        @default("INR")
+  status           PaymentStatus @default(PENDING)
+  razorpayOrderId  String
+  razorpayPaymentId String?
+  razorpaySignature String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Chat {
+  id        String   @id @default(auto()) @map("_id")
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  bookingId String
+  sender    User     @relation("UserChats", fields: [senderId], references: [id])
+  senderId  String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id          String       @id @default(auto()) @map("_id")
+  user        User         @relation("UserSupportTickets", fields: [userId], references: [id])
+  userId      String
+  subject     String
+  description String
+  status      TicketStatus @default(OPEN)
+  priority    Priority     @default(MEDIUM)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  closedAt    DateTime?
+}
+
+model Account {
+  id                 String  @id @default(auto()) @map("_id")
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.String
+  access_token       String?  @db.String
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token          String?  @db.String
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id")
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id")
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum KycDocumentType {
+  PASSPORT
+  DRIVING_LICENSE
+  NATIONAL_ID
+  OTHER
+}
+
+enum RideStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
